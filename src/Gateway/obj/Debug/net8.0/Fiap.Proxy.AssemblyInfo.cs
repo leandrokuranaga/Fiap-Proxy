@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Fiap.Proxy")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+587dcee119e728f4bc304eddfe7a512bd2c3960d")]
 [assembly: System.Reflection.AssemblyProductAttribute("Fiap.Proxy")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Fiap.Proxy")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
