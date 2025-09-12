@@ -1,3 +1,4 @@
-<Solution>
+﻿<Solution><PropertyGroup>  <UserSecretsId>a32da5a4-609d-4528-9a00-06867b277d3d</UserSecretsId>
+  </PropertyGroup>
   <Project Path="src/Gateway/Fiap.Proxy.csproj" />
 </Solution>
