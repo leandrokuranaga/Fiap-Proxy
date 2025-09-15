@@ -28,7 +28,7 @@
 #       - name: Baixar definição da Task atual do ECS
 #         run: |
 #           aws ecs describe-task-definition \
-#             --task-definition TKS-FIAP-AWS-ESC-Fiap \
+#             --task-definition TKS-FIAP-PROXY-AWS-ESC \
 #             --query "taskDefinition" > task-definition.json
 
 #       - name: Atualizar imagem no JSON
