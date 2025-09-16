@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using System.Security.Claims;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -34,10 +35,12 @@ builder.Services
     {
         options.TokenValidationParameters = new TokenValidationParameters
         {
-            ValidIssuer = "localhost",
-            ValidAudience = "gateway",
+            ValidateAudience = false,
+            ValidateIssuer = false,
             IssuerSigningKey = new SymmetricSecurityKey(
-                System.Text.Encoding.UTF8.GetBytes(builder.Configuration["JwtSettings:SecretKey"]))
+                System.Text.Encoding.UTF8.GetBytes(builder.Configuration["JwtSettings:SecretKey"])),
+            RoleClaimType = ClaimTypes.Role,
+            NameClaimType = ClaimTypes.Name
         };
 
         options.SaveToken = true;
@@ -54,7 +57,7 @@ builder.Services.AddRateLimiter(options =>
     options.AddFixedWindowLimiter("customPolicy", opt =>
     {
         opt.PermitLimit = 2;
-        opt.Window = TimeSpan.FromMinutes(12);
+        opt.Window = TimeSpan.FromMinutes(2);
         opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
         opt.QueueLimit = 2;
     });
@@ -74,7 +77,13 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
 app.UseCors("AllowAllOrigins");
+
+app.UseRateLimiter();
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.UseSwagger();
 app.UseSwaggerUI(c =>
@@ -84,6 +93,8 @@ app.UseSwaggerUI(c =>
 
 app.MapHealthChecks("/health");
 app.MapGet("/health", () => "Gateway is running");
+app.MapGet("/test-ratelimit", () => $"Resposta OK em: {DateTime.Now:HH:mm:ss}")
+   .RequireRateLimiting("customPolicy");
 app.MapReverseProxy();
 
 app.Run();
