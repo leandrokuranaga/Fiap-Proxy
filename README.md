@@ -55,37 +55,13 @@ git clone https://github.com/leandrokuranaga/fiap-proxy.git
 cd fiap-proxy
 ```
 
-#### 2. Restaurar dependências e executar
-```bash
-# Criar arquivo de solução temporário (necessário devido ao formato .slnx)
-dotnet new sln -n Fiap.Proxy
-find . -name "*.csproj" -exec dotnet sln Fiap.Proxy.sln add {} \;
-
-# Restaurar dependências
-dotnet restore *.sln
-
-# Executar a aplicação
-dotnet run --project src/Gateway/Fiap.Proxy.csproj
-```
-
-#### 3. Executar com Docker
+#### 2. Executar com Docker
 ```bash
 # Build da imagem
 docker build -t fiap-proxy .
 
 # Executar container
 docker run -p 8080:8080 fiap-proxy
-```
-
-### 🔧 Desenvolvimento
-
-#### Build e Testes
-```bash
-# Build da solução
-dotnet build *.sln --no-restore --configuration Release
-
-# Executar testes
-dotnet test *.sln --no-build --configuration Release --verbosity normal
 ```
 
 ## 📖 Uso da API
