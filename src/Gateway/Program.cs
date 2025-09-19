@@ -4,6 +4,7 @@ using Microsoft.OpenApi.Models;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddHealthChecks();
+builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -26,13 +27,7 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-var fwd = new ForwardedHeadersOptions
-{
-    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
-};
-fwd.KnownNetworks.Clear();
-fwd.KnownProxies.Clear();
-app.UseForwardedHeaders(fwd);
+app.UseRouting();
 
 app.UseSwagger();
 app.UseSwaggerUI(c =>
@@ -41,6 +36,11 @@ app.UseSwaggerUI(c =>
 });
 
 app.UseCors("AllowAllOrigins");
+
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapControllers();
 
 app.MapHealthChecks("/health");
 app.MapGet("/health", () => "Gateway is running");
