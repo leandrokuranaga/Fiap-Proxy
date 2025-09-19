@@ -29,13 +29,14 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
-app.UseCors("AllowAllOrigins");
 
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "Gateway API v1");
 });
+
+app.UseCors("AllowAllOrigins");
 
 app.MapHealthChecks("/health");
 app.MapGet("/health", () => "Gateway is running");
