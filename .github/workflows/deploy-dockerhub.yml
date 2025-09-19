@@ -23,5 +23,5 @@ jobs:
 
       - name: Build e Push
         run: |
-          docker build -f ./src/Fiap.Gateway/Dockerfile -t ${{ secrets.DOCKER_USERNAME }}/fiap-proxy:latest .
+          docker build -f ./src/Gateway/Dockerfile -t ${{ secrets.DOCKER_USERNAME }}/fiap-proxy:latest .
           docker push ${{ secrets.DOCKER_USERNAME }}/fiap-proxy:latest
