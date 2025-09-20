@@ -31,9 +31,15 @@ jobs:
             --task-definition TKS-FIAP-PROXY-AWS-ESC \
             --query "taskDefinition" > task-definition.json
 
-      - name: Atualizar imagem no JSON
+      - name: Atualizar imagem e configurações no JSON
         run: |
           jq '.containerDefinitions[0].image = "${{ env.IMAGE_NAME }}:latest" |
+              .containerDefinitions[0].portMappings = [
+                {
+                  "containerPort": 8080,
+                  "protocol": "tcp"
+                }
+              ] |
               del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
               task-definition.json > new-task-definition.json
 

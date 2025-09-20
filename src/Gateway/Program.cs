@@ -42,11 +42,6 @@ builder.Services.AddCors(options =>
 
 var jwtSettings = builder.Configuration["JwtSettings:SecretKey"];
 
-if (string.IsNullOrEmpty(jwtSettings))
-{
-    throw new InvalidOperationException("JwtSettings:SecretKey não configurado");
-}
-
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
