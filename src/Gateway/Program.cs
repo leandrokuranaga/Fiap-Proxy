@@ -42,6 +42,11 @@ builder.Services.AddCors(options =>
 
 var jwtSettings = builder.Configuration["JwtSettings:SecretKey"];
 
+if (string.IsNullOrEmpty(jwtSettings))
+{
+    throw new InvalidOperationException("JwtSettings:SecretKey não configurado");
+}
+
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -88,6 +93,8 @@ var app = builder.Build();
 
 app.UseRouting();
 
+app.UseCors("AllowAllOrigins");
+
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
@@ -105,7 +112,5 @@ app.MapHealthChecks("/health");
 
 app.MapGet("/health", () => "Gateway is running");
 app.MapReverseProxy();
-
-app.UseCors("AllowAllOrigins");
 
 app.Run();
