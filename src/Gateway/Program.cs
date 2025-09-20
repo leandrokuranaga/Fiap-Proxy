@@ -77,7 +77,7 @@ builder.Services.AddRateLimiter(options =>
 {
     options.AddFixedWindowLimiter("customPolicy", opt =>
     {
-        opt.PermitLimit = 4;
+        opt.PermitLimit = 5;
         opt.Window = TimeSpan.FromSeconds(12);
         opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
         opt.QueueLimit = 2;
@@ -93,6 +93,8 @@ app.UseSwaggerUI(c =>
 {
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "Gateway API v1");
 });
+
+app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();
