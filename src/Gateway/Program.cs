@@ -91,8 +91,6 @@ app.UseSwaggerUI(c =>
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "Gateway API v1");
 });
 
-app.UseCors("AllowAllOrigins");
-
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -102,5 +100,7 @@ app.MapHealthChecks("/health");
 
 app.MapGet("/health", () => "Gateway is running");
 app.MapReverseProxy();
+
+app.UseCors("AllowAllOrigins");
 
 app.Run();
