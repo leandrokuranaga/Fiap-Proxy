@@ -1,3 +1,4 @@
+using Fiap.Proxy.Utils;
 using OpenTelemetry.Exporter;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
