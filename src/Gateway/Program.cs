@@ -7,8 +7,6 @@ using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.WebHost.UseUrls("http://*:8080");
-
 #if DEBUG
 builder.Configuration.AddUserSecrets<Program>(optional: true, reloadOnChange: true);
 #endif
