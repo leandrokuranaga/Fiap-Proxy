@@ -1,7 +1,10 @@
+using Fiap.Proxy.Extensions;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Prometheus;
+using Serilog;
 using System.Text;
 using System.Threading.RateLimiting;
 
@@ -17,6 +20,10 @@ builder.Configuration.AddSystemsManager(source =>
     source.Optional = true;
     source.ReloadAfter = TimeSpan.FromMinutes(5);
 });
+
+builder.Services.AddProxyObservability(builder.Configuration, builder.Environment);
+
+builder.Host.UseSerilog();
 
 builder.Services.AddHealthChecks();
 builder.Services.AddControllers();
@@ -113,6 +120,10 @@ app.MapControllers();
 app.MapHealthChecks("/health");
 
 app.MapGet("/health", () => "Gateway is running");
+
+app.UseHttpMetrics();
+app.MapMetrics();
+
 app.MapReverseProxy();
 
 app.Run();
