@@ -3,7 +3,7 @@ name: Publicar Imagem Docker no Docker Hub
 on:
   push:
     branches:
-    - dev
+    - main
 jobs:
   build_and_push:
     runs-on: ubuntu-latest
