@@ -1,0 +1,104 @@
+name: Deploy to AWS EKS
+
+on:
+  workflow_run:
+    workflows: ["Publicar Imagem Docker no Docker Hub"]
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Tag da imagem Docker'
+        required: false
+        default: 'latest'
+
+env:
+  IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/fiap-proxy
+  EKS_CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME }}
+  NAMESPACE: fiap
+
+jobs:
+  deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Configurar credenciais da AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Configurar kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Configurar kubeconfig para EKS
+        run: |
+          aws eks update-kubeconfig \
+            --region ${{ secrets.AWS_REGION }} \
+            --name ${{ env.EKS_CLUSTER_NAME }}
+
+      - name: Verificar conexão com o cluster
+        run: |
+          kubectl cluster-info
+          kubectl get nodes
+
+      - name: Criar namespace se não existir
+        run: |
+          kubectl create namespace ${{ env.NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Definir tag da imagem
+        id: image_tag
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=latest" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Atualizar imagem no deployment
+        run: |
+          # Atualizar ConfigMap e Secret primeiro
+          kubectl apply -f k8s/configmap.yaml -n ${{ env.NAMESPACE }}
+          kubectl apply -f k8s/secret.yaml -n ${{ env.NAMESPACE }}
+
+          # Atualizar Deployment com nova imagem
+          kubectl set image deployment/proxy-gateway \
+            proxy-gateway=${{ env.IMAGE_NAME }}:${{ steps.image_tag.outputs.tag }} \
+            -n ${{ env.NAMESPACE }} || \
+          kubectl apply -f k8s/deployment.yaml -n ${{ env.NAMESPACE }}
+
+          # Aplicar Service, HPA e Ingress
+          kubectl apply -f k8s/service.yaml -n ${{ env.NAMESPACE }}
+          kubectl apply -f k8s/hpa.yaml -n ${{ env.NAMESPACE }}
+          kubectl apply -f k8s/ingress.yaml -n ${{ env.NAMESPACE }}
+
+      - name: Aguardar rollout
+        run: |
+          kubectl rollout status deployment/proxy-gateway -n ${{ env.NAMESPACE }} --timeout=300s
+
+      - name: Verificar deploy
+        run: |
+          echo "=== Pods ==="
+          kubectl get pods -l app=proxy-gateway -n ${{ env.NAMESPACE }}
+          echo ""
+          echo "=== Service ==="
+          kubectl get svc proxy-service -n ${{ env.NAMESPACE }}
+          echo ""
+          echo "=== HPA ==="
+          kubectl get hpa proxy-gateway-hpa -n ${{ env.NAMESPACE }}
+          echo ""
+          echo "=== Ingress ==="
+          kubectl get ingress fiap-ingress -n ${{ env.NAMESPACE }}
+
+      - name: Notificar falha
+        if: failure()
+        run: |
+          echo "::error::Deploy falhou! Verificar logs dos pods:"
+          kubectl logs -l app=proxy-gateway -n ${{ env.NAMESPACE }} --tail=50
