@@ -30,11 +30,11 @@ spec:
                 name: proxy-secrets
           resources:
             requests:
-              memory: "10Mi"
-              cpu: "10m"
+              memory: "200Mi"
+              cpu: "100m"
             limits:
               memory: "300Mi"
-              cpu: "100m"
+              cpu: "200m"
           livenessProbe:
             httpGet:
               path: /health

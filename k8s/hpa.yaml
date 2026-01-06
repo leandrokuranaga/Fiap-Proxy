@@ -10,7 +10,7 @@ spec:
     kind: Deployment
     name: proxy-gateway
   minReplicas: 1
-  maxReplicas: 3
+  maxReplicas: 1
   metrics:
     - type: Resource
       resource:
