@@ -1,29 +1,64 @@
-# See https://aka.ms/customizecontainer to learn how to customize your debug container and how Visual Studio uses this Dockerfile to build your images for faster debugging.
+# =============================================================================
+# DOCKERFILE OTIMIZADO - PROXY/GATEWAY
+# Imagem base: Alpine (~100MB vs ~200MB debian)
+# =============================================================================
 
-# This stage is used when running from VS in fast mode (Default for Debug configuration)
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
-USER $APP_UID
-WORKDIR /app
-EXPOSE 8080
-EXPOSE 8081
-
-
-# This stage is used to build the service project
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+# Build stage
+FROM mcr.microsoft.com/dotnet/sdk:8.0-alpine AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
+
+# Copiar apenas o .csproj primeiro (melhor cache de layers)
 COPY ["Fiap.Proxy.csproj", "./"]
-RUN dotnet restore "./Fiap.Proxy.csproj"
+
+# Restore com cache
+RUN dotnet restore "Fiap.Proxy.csproj"
+
+# Copiar código fonte
 COPY . .
-RUN dotnet build "./Fiap.Proxy.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
-# This stage is used to publish the service project to be copied to the final stage
-FROM build AS publish
-ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "./Fiap.Proxy.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+# Build e publish
+RUN dotnet publish "Fiap.Proxy.csproj" \
+    -c $BUILD_CONFIGURATION \
+    -o /app/publish \
+    --no-restore \
+    /p:UseAppHost=false
 
-# This stage is used in production or when running from VS in regular mode (Default when not using the Debug configuration)
-FROM base AS final
+# =============================================================================
+# Runtime stage - Imagem final otimizada
+# =============================================================================
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine AS final
+
+# Labels para metadata
+LABEL maintainer="FIAP Team" \
+      app="proxy-gateway" \
+      version="1.0"
+
+# Instalar dependências necessárias e criar usuário não-root
+RUN apk add --no-cache \
+        icu-libs \
+        tzdata \
+    && addgroup -g 1000 appgroup \
+    && adduser -u 1000 -G appgroup -s /bin/sh -D appuser
+
+# Configurar timezone
+ENV TZ=America/Sao_Paulo \
+    DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false \
+    ASPNETCORE_URLS=http://+:8080 \
+    ASPNETCORE_ENVIRONMENT=Production
+
 WORKDIR /app
-COPY --from=publish /app/publish .
+
+# Copiar artefatos do build
+COPY --from=build --chown=appuser:appgroup /app/publish .
+
+# Usar usuário não-root
+USER appuser
+
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
+
 ENTRYPOINT ["dotnet", "Fiap.Proxy.dll"]
