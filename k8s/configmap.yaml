@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: proxy-config
+  labels:
+    app: proxy-gateway
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  TZ: "America/Sao_Paulo"
+  # Reverse Proxy Clusters (internal K8s services)
+  ReverseProxy__Clusters__crm__Destinations__api1__Address: "http://crm-service"
+  ReverseProxy__Clusters__fcg__Destinations__games1__Address: "http://fcg-service"
+  ReverseProxy__Clusters__payment__Destinations__pay1__Address: "http://payment-service"
+  # Logging
+  Serilog__MinimumLevel__Default: "Information"

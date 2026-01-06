@@ -1,0 +1,50 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fiap-ingress
+  labels:
+    app: proxy-gateway
+  annotations:
+    # Para nginx ingress controller
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    # Rate limiting
+    nginx.ingress.kubernetes.io/limit-rps: "100"
+    nginx.ingress.kubernetes.io/limit-connections: "50"
+    # SSL redirect (descomente para HTTPS)
+    # nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # Para AWS ALB (se estiver usando AWS)
+    # kubernetes.io/ingress.class: alb
+    # alb.ingress.kubernetes.io/scheme: internet-facing
+    # alb.ingress.kubernetes.io/target-type: ip
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: api.fiap.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: proxy-service
+                port:
+                  number: 80
+    # Adicione mais hosts conforme necessário
+    # - host: api.fiap.com.br
+    #   http:
+    #     paths:
+    #       - path: /
+    #         pathType: Prefix
+    #         backend:
+    #           service:
+    #             name: proxy-service
+    #             port:
+    #               number: 80
+  # TLS (descomente para HTTPS)
+  # tls:
+  #   - hosts:
+  #       - api.fiap.local
+  #     secretName: fiap-tls-secret
