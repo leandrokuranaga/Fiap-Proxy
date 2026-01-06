@@ -18,8 +18,8 @@ spec:
     spec:
       containers:
         - name: proxy-gateway
-          image: fiap/proxy-gateway:latest
-          imagePullPolicy: Never
+          image: kuranaga/fiap-proxy:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
               protocol: TCP

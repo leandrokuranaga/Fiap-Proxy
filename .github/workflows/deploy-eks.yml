@@ -62,21 +62,36 @@ jobs:
             echo "tag=latest" >> $GITHUB_OUTPUT
           fi
 
-      - name: Atualizar imagem no deployment
+      - name: Renderizar Secret com valores reais
+        env:
+          JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
         run: |
-          # Atualizar ConfigMap e Secret primeiro
-          kubectl apply -f k8s/configmap.yaml -n ${{ env.NAMESPACE }}
-          kubectl apply -f k8s/secret.yaml -n ${{ env.NAMESPACE }}
+          echo "=== Renderizando Secret com envsubst ==="
+          envsubst < k8s/secret.yaml > k8s/secret.rendered.yaml
 
-          # Atualizar Deployment com nova imagem
-          kubectl set image deployment/proxy-gateway \
-            proxy-gateway=${{ env.IMAGE_NAME }}:${{ steps.image_tag.outputs.tag }} \
-            -n ${{ env.NAMESPACE }} || \
+      - name: Aplicar recursos Kubernetes
+        run: |
+          echo "=== Aplicando ConfigMap ==="
+          kubectl apply -f k8s/configmap.yaml -n ${{ env.NAMESPACE }}
+
+          echo "=== Aplicando Secret ==="
+          kubectl apply -f k8s/secret.rendered.yaml -n ${{ env.NAMESPACE }}
+
+          echo "=== Aplicando Deployment ==="
           kubectl apply -f k8s/deployment.yaml -n ${{ env.NAMESPACE }}
 
-          # Aplicar Service, HPA e Ingress
+          echo "=== Atualizando imagem no deployment ==="
+          kubectl set image deployment/proxy-gateway \
+            proxy-gateway=${{ env.IMAGE_NAME }}:${{ steps.image_tag.outputs.tag }} \
+            -n ${{ env.NAMESPACE }}
+
+          echo "=== Aplicando Service ==="
           kubectl apply -f k8s/service.yaml -n ${{ env.NAMESPACE }}
+
+          echo "=== Aplicando HPA ==="
           kubectl apply -f k8s/hpa.yaml -n ${{ env.NAMESPACE }}
+
+          echo "=== Aplicando Ingress ==="
           kubectl apply -f k8s/ingress.yaml -n ${{ env.NAMESPACE }}
 
       - name: Aguardar rollout
