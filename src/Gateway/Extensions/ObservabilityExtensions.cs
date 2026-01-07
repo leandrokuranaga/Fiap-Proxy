@@ -24,7 +24,7 @@ public static class ObservabilityExtensions
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        var lokiUri = configuration["Serilog:WriteTo:1:Args:Uri"];
+        var lokiUri = configuration["ProxyObservability:Serilog:WriteTo:1:Args:Uri"];
 
         Log.Logger = new LoggerConfiguration()
             .ReadFrom.Configuration(configuration.GetSection("ProxyObservability:Serilog"))
