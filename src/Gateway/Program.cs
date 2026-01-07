@@ -21,7 +21,7 @@ builder.Configuration.AddSystemsManager(source =>
     source.ReloadAfter = TimeSpan.FromMinutes(5);
 });
 
-builder.Services.AddProxyObservability(builder.Configuration, builder.Environment);
+builder.Services.AddAwsObservability(builder.Configuration, builder.Environment);
 
 builder.Host.UseSerilog();
 
@@ -99,6 +99,8 @@ builder.Services.AddRateLimiter(options =>
 });
 
 var app = builder.Build();
+
+app.UseAwsXRay("FiapProxy");
 
 app.UseRouting();
 
