@@ -104,7 +104,7 @@ jobs:
 
       - name: Aguardar rollout
         run: |
-          kubectl rollout status deployment/proxy-gateway -n ${{ env.NAMESPACE }} --timeout=300s
+          kubectl rollout status deployment/proxy-gateway -n ${{ env.NAMESPACE }} --timeout=60s
 
       - name: Verificar deploy
         run: |

@@ -6,7 +6,6 @@ using Amazon.XRay.Recorder.Core;
 using Amazon.XRay.Recorder.Handlers.AwsSdk;
 using Fiap.Proxy.Utils;
 using OpenTelemetry.Exporter;
-using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
@@ -125,32 +124,88 @@ public static class ObservabilityExtensions
 
         var logGroup = configuration["AWS:Observability:CloudWatch:Logs:LogGroup"] ?? "/fiap/proxy";
         var logStreamPrefix = configuration["AWS:Observability:CloudWatch:Logs:LogStreamPrefix"] ?? "proxy-";
+        var streamName = $"{logStreamPrefix}{environment.EnvironmentName}-{DateTime.UtcNow:yyyyMMdd}";
 
-        var client = CreateCloudWatchLogsClient(configuration, region);
+        var accessKey = configuration["AWS:Credentials:AccessKey"]
+            ?? Environment.GetEnvironmentVariable("AWS_ACCESS_KEY_ID")
+            ?? Environment.GetEnvironmentVariable("AWS_SQS_ACCESS_KEY");
+        var secretKey = configuration["AWS:Credentials:SecretKey"]
+            ?? Environment.GetEnvironmentVariable("AWS_SECRET_ACCESS_KEY")
+            ?? Environment.GetEnvironmentVariable("AWS_SQS_SECRET_KEY");
 
-        var options = new CloudWatchSinkOptions
+        try
         {
-            LogGroupName = logGroup,
-            LogStreamNameProvider = new ConstantLogStreamNameProvider($"{logStreamPrefix}{environment.EnvironmentName}-{DateTime.UtcNow:yyyyMMdd}"),
-            TextFormatter = new Serilog.Formatting.Json.JsonFormatter(),
-            MinimumLogEventLevel = Serilog.Events.LogEventLevel.Information,
-            BatchSizeLimit = 100,
-            QueueSizeLimit = 10000,
-            Period = TimeSpan.FromSeconds(10),
-            CreateLogGroup = true,
-            LogGroupRetentionPolicy = LogGroupRetentionPolicy.OneMonth
-        };
+            AmazonCloudWatchLogsClient client;
 
-        Log.Logger = new LoggerConfiguration()
-            .ReadFrom.Configuration(configuration.GetSection("ProxyObservability:Serilog"))
-            .Enrich.FromLogContext()
-            .Enrich.WithEnvironmentName()
-            .Enrich.WithMachineName()
-            .Enrich.WithProcessId()
-            .Enrich.WithProperty("Application", serviceName)
-            .WriteTo.Console()
-            .WriteTo.AmazonCloudWatch(options, client)
-            .CreateLogger();
+            var localStackEnabled = configuration.GetValue<bool>("AWS:Observability:LocalStack:Enabled");
+            var localStackUrl = configuration["AWS:Observability:LocalStack:ServiceUrl"] ?? "http://localhost:4566";
+
+            if (!string.IsNullOrEmpty(accessKey) && !string.IsNullOrEmpty(secretKey))
+            {
+                var credentials = new Amazon.Runtime.BasicAWSCredentials(accessKey, secretKey);
+
+                if (localStackEnabled)
+                {
+                    var config = new AmazonCloudWatchLogsConfig
+                    {
+                        ServiceURL = localStackUrl,
+                        UseHttp = true
+                    };
+                    client = new AmazonCloudWatchLogsClient(credentials, config);
+                }
+                else
+                {
+                    client = new AmazonCloudWatchLogsClient(credentials, RegionEndpoint.GetBySystemName(region));
+                }
+            }
+            else
+            {
+                client = new AmazonCloudWatchLogsClient(RegionEndpoint.GetBySystemName(region));
+            }
+
+            // Tenta criar o log group (ignora se já existe)
+            try
+            {
+                client.CreateLogGroupAsync(new Amazon.CloudWatchLogs.Model.CreateLogGroupRequest
+                {
+                    LogGroupName = logGroup
+                }).GetAwaiter().GetResult();
+            }
+            catch (Amazon.CloudWatchLogs.Model.ResourceAlreadyExistsException) { }
+
+            var options = new CloudWatchSinkOptions
+            {
+                LogGroupName = logGroup,
+                LogStreamNameProvider = new ConstantLogStreamNameProvider(streamName),
+                TextFormatter = new Serilog.Formatting.Json.JsonFormatter(),
+                MinimumLogEventLevel = Serilog.Events.LogEventLevel.Information,
+                BatchSizeLimit = 100,
+                QueueSizeLimit = 10000,
+                Period = TimeSpan.FromSeconds(10),
+                CreateLogGroup = true,
+                LogGroupRetentionPolicy = LogGroupRetentionPolicy.OneMonth
+            };
+
+            Log.Logger = new LoggerConfiguration()
+                .ReadFrom.Configuration(configuration.GetSection("ProxyObservability:Serilog"))
+                .Enrich.FromLogContext()
+                .Enrich.WithEnvironmentName()
+                .Enrich.WithMachineName()
+                .Enrich.WithProcessId()
+                .Enrich.WithProperty("Application", serviceName)
+                .WriteTo.Console()
+                .WriteTo.AmazonCloudWatch(options, client)
+                .CreateLogger();
+        }
+        catch (Exception)
+        {
+            // Fallback: só console
+            Log.Logger = new LoggerConfiguration()
+                .ReadFrom.Configuration(configuration.GetSection("ProxyObservability:Serilog"))
+                .Enrich.FromLogContext()
+                .WriteTo.Console()
+                .CreateLogger();
+        }
     }
 
     private static void ConfigureAwsXRayTracing(IServiceCollection services, IConfiguration configuration, string serviceName, string region)
@@ -158,10 +213,13 @@ public static class ObservabilityExtensions
         var xrayEnabled = configuration.GetValue<bool>("AWS:Observability:XRay:Enabled");
         if (!xrayEnabled) return;
 
-        // Configura o X-Ray Recorder
-        AWSXRayRecorder.InitializeInstance(configuration);
+        var daemonAddress = configuration["AWS:Observability:XRay:DaemonAddress"]
+            ?? Environment.GetEnvironmentVariable("AWS_XRAY_DAEMON_ADDRESS")
+            ?? "xray-daemon.fiap:2000";
 
-        // Registra handlers para instrumentar chamadas AWS SDK automaticamente
+        Environment.SetEnvironmentVariable("AWS_XRAY_DAEMON_ADDRESS", daemonAddress);
+
+        AWSXRayRecorder.InitializeInstance(configuration);
         AWSSDKHandler.RegisterXRayForAllServices();
     }
 
@@ -172,43 +230,44 @@ public static class ObservabilityExtensions
 
         var metricsNamespace = configuration["AWS:Observability:CloudWatch:Metrics:Namespace"] ?? "Fiap/Proxy";
 
-        // Registra o client do CloudWatch para injeção de dependência
         services.AddSingleton<IAmazonCloudWatch>(sp =>
             CreateCloudWatchClient(configuration, region));
 
-        // Registra o serviço de métricas customizadas
         services.AddSingleton<ICloudWatchMetricsService>(sp =>
             new CloudWatchMetricsService(
                 sp.GetRequiredService<IAmazonCloudWatch>(),
                 metricsNamespace,
                 serviceName));
 
-        // Registra o hosted service para coletar métricas periodicamente
         services.AddHostedService<CloudWatchMetricsCollector>();
-    }
-
-    private static AmazonCloudWatchLogsClient CreateCloudWatchLogsClient(IConfiguration configuration, string region)
-    {
-        var accessKey = Environment.GetEnvironmentVariable("AWS_SQS_ACCESS_KEY");
-        var secretKey = Environment.GetEnvironmentVariable("AWS_SQS_SECRET_KEY");
-
-        if (!string.IsNullOrEmpty(accessKey) && !string.IsNullOrEmpty(secretKey))
-        {
-            var credentials = new Amazon.Runtime.BasicAWSCredentials(accessKey, secretKey);
-            return new AmazonCloudWatchLogsClient(credentials, RegionEndpoint.GetBySystemName(region));
-        }
-
-        return new AmazonCloudWatchLogsClient(RegionEndpoint.GetBySystemName(region));
     }
 
     private static AmazonCloudWatchClient CreateCloudWatchClient(IConfiguration configuration, string region)
     {
-        var accessKey = Environment.GetEnvironmentVariable("AWS_SQS_ACCESS_KEY");
-        var secretKey = Environment.GetEnvironmentVariable("AWS_SQS_SECRET_KEY");
+        var accessKey = configuration["AWS:Credentials:AccessKey"]
+            ?? Environment.GetEnvironmentVariable("AWS_ACCESS_KEY_ID")
+            ?? Environment.GetEnvironmentVariable("AWS_SQS_ACCESS_KEY");
+        var secretKey = configuration["AWS:Credentials:SecretKey"]
+            ?? Environment.GetEnvironmentVariable("AWS_SECRET_ACCESS_KEY")
+            ?? Environment.GetEnvironmentVariable("AWS_SQS_SECRET_KEY");
+
+        var localStackEnabled = configuration.GetValue<bool>("AWS:Observability:LocalStack:Enabled");
+        var localStackUrl = configuration["AWS:Observability:LocalStack:ServiceUrl"] ?? "http://localhost:4566";
 
         if (!string.IsNullOrEmpty(accessKey) && !string.IsNullOrEmpty(secretKey))
         {
             var credentials = new Amazon.Runtime.BasicAWSCredentials(accessKey, secretKey);
+
+            if (localStackEnabled)
+            {
+                var config = new AmazonCloudWatchConfig
+                {
+                    ServiceURL = localStackUrl,
+                    UseHttp = true
+                };
+                return new AmazonCloudWatchClient(credentials, config);
+            }
+
             return new AmazonCloudWatchClient(credentials, RegionEndpoint.GetBySystemName(region));
         }
 
@@ -302,7 +361,6 @@ public class CloudWatchMetricsCollector : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        // Aguarda a aplicação inicializar antes de começar a coletar métricas
         try
         {
             await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
@@ -318,56 +376,25 @@ public class CloudWatchMetricsCollector : BackgroundService
             {
                 if (!_credentialsAvailable)
                 {
-                    // Se credenciais não estão disponíveis, apenas aguarda
                     await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
-                    _credentialsAvailable = true; // Tenta novamente após 5 minutos
+                    _credentialsAvailable = true;
                     continue;
                 }
 
-                // Coleta métricas do processo
                 _currentProcess.Refresh();
 
-                await _metricsService.PutMetricAsync(
-                    "MemoryUsedMB",
-                    _currentProcess.WorkingSet64 / 1024.0 / 1024.0,
-                    StandardUnit.Megabytes);
-
-                await _metricsService.PutMetricAsync(
-                    "ThreadCount",
-                    _currentProcess.Threads.Count,
-                    StandardUnit.Count);
-
-                await _metricsService.PutMetricAsync(
-                    "CpuTimeSeconds",
-                    _currentProcess.TotalProcessorTime.TotalSeconds,
-                    StandardUnit.Seconds);
-
-                // GC Metrics
-                await _metricsService.PutMetricAsync(
-                    "GCGen0Collections",
-                    GC.CollectionCount(0),
-                    StandardUnit.Count);
-
-                await _metricsService.PutMetricAsync(
-                    "GCGen1Collections",
-                    GC.CollectionCount(1),
-                    StandardUnit.Count);
-
-                await _metricsService.PutMetricAsync(
-                    "GCGen2Collections",
-                    GC.CollectionCount(2),
-                    StandardUnit.Count);
-
-                await _metricsService.PutMetricAsync(
-                    "GCHeapSizeMB",
-                    GC.GetTotalMemory(false) / 1024.0 / 1024.0,
-                    StandardUnit.Megabytes);
+                await _metricsService.PutMetricAsync("MemoryUsedMB", _currentProcess.WorkingSet64 / 1024.0 / 1024.0, StandardUnit.Megabytes);
+                await _metricsService.PutMetricAsync("ThreadCount", _currentProcess.Threads.Count, StandardUnit.Count);
+                await _metricsService.PutMetricAsync("CpuTimeSeconds", _currentProcess.TotalProcessorTime.TotalSeconds, StandardUnit.Seconds);
+                await _metricsService.PutMetricAsync("GCGen0Collections", GC.CollectionCount(0), StandardUnit.Count);
+                await _metricsService.PutMetricAsync("GCGen1Collections", GC.CollectionCount(1), StandardUnit.Count);
+                await _metricsService.PutMetricAsync("GCGen2Collections", GC.CollectionCount(2), StandardUnit.Count);
+                await _metricsService.PutMetricAsync("GCHeapSizeMB", GC.GetTotalMemory(false) / 1024.0 / 1024.0, StandardUnit.Megabytes);
 
                 await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
             }
             catch (OperationCanceledException)
             {
-                // Shutdown normal da aplicação - não é erro
                 break;
             }
             catch (Amazon.Runtime.AmazonClientException ex) when (ex.Message.Contains("credentials"))
