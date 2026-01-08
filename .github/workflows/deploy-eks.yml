@@ -65,8 +65,8 @@ jobs:
       - name: Renderizar Secret com valores reais
         env:
           JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SQS_ACCESS_KEY: ${{ secrets.AWS_SQS_ACCESS_KEY }}
+          AWS_SQS_SECRET_KEY: ${{ secrets.AWS_SQS_SECRET_KEY }}
           AWS_REGION: ${{ secrets.AWS_REGION }}
         run: |
           echo "=== Renderizando Secret com envsubst ==="
