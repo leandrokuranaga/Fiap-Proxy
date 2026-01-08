@@ -76,9 +76,6 @@ jobs:
 
       - name: Aplicar recursos Kubernetes
         run: |
-          echo "=== Aplicando X-Ray Daemon (DaemonSet + Service) ==="
-          kubectl apply -f k8s/xray-daemon.yaml -n ${{ env.NAMESPACE }}
-
           echo "=== Aplicando ConfigMap ==="
           kubectl apply -f k8s/configmap.yaml -n ${{ env.NAMESPACE }}
 
