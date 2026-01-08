@@ -288,6 +288,7 @@ public class CloudWatchMetricsCollector : BackgroundService
     private readonly ICloudWatchMetricsService _metricsService;
     private readonly ILogger<CloudWatchMetricsCollector> _logger;
     private readonly Process _currentProcess;
+    private bool _credentialsAvailable = true;
 
     public CloudWatchMetricsCollector(ICloudWatchMetricsService metricsService, ILogger<CloudWatchMetricsCollector> logger)
     {
@@ -298,10 +299,28 @@ public class CloudWatchMetricsCollector : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // Aguarda a aplicação inicializar antes de começar a coletar métricas
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
+                if (!_credentialsAvailable)
+                {
+                    // Se credenciais não estão disponíveis, apenas aguarda
+                    await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
+                    _credentialsAvailable = true; // Tenta novamente após 5 minutos
+                    continue;
+                }
+
                 // Coleta métricas do processo
                 _currentProcess.Refresh();
 
@@ -340,13 +359,31 @@ public class CloudWatchMetricsCollector : BackgroundService
                     "GCHeapSizeMB",
                     GC.GetTotalMemory(false) / 1024.0 / 1024.0,
                     StandardUnit.Megabytes);
+
+                await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                // Shutdown normal da aplicação - não é erro
+                break;
+            }
+            catch (Amazon.Runtime.AmazonClientException ex) when (ex.Message.Contains("credentials"))
+            {
+                _logger.LogWarning("Credenciais AWS não disponíveis para CloudWatch Metrics. Métricas desabilitadas temporariamente.");
+                _credentialsAvailable = false;
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Erro ao enviar métricas para CloudWatch");
+                try
+                {
+                    await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
             }
-
-            await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
         }
     }
 }
