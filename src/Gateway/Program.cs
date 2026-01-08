@@ -18,6 +18,13 @@ builder.Services.AddProxyObservability(builder.Configuration, builder.Environmen
 
 builder.Host.UseSerilog();
 
+builder.Configuration.AddSystemsManager(source =>
+{
+    source.Path = "/myapp/prod/";
+    source.Optional = true;
+    source.ReloadAfter = TimeSpan.FromMinutes(5);
+});
+
 builder.Services.AddHealthChecks();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -41,6 +48,7 @@ builder.Services.AddCors(options =>
 });
 
 var jwtSettings = builder.Configuration["JwtSettings:SecretKey"];
+builder.Services.AddApplicationInsightsTelemetry(builder.Configuration["ApplicationInsights:InstrumentationKey"]);
 
 if (!string.IsNullOrEmpty(jwtSettings))
 {
