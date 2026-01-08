@@ -5,6 +5,7 @@ using Amazon.CloudWatchLogs;
 using Amazon.XRay.Recorder.Core;
 using Amazon.XRay.Recorder.Handlers.AwsSdk;
 using Fiap.Proxy.Utils;
+using Microsoft.Extensions.DependencyInjection;
 using OpenTelemetry.Exporter;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -113,6 +114,11 @@ public static class ObservabilityExtensions
     /// </summary>
     public static IApplicationBuilder UseAwsXRay(this IApplicationBuilder app, string serviceName)
     {
+        var configuration = app.ApplicationServices.GetRequiredService<IConfiguration>();
+        var xrayEnabled = configuration.GetValue<bool>("AWS:Observability:XRay:Enabled");
+
+        if (!xrayEnabled) return app;
+
         app.UseXRay(serviceName);
         return app;
     }
