@@ -91,7 +91,10 @@ public static class ObservabilityExtensions
     }
 
     /// <summary>
-    /// Configura observabilidade usando AWS CloudWatch (Logs + Metrics) e X-Ray (Tracing) - SDK direto, sem collector
+    /// Configura observabilidade usando AWS CloudWatch (Logs + Metrics) e X-Ray (Tracing)
+    /// - Logs: SDK direto via API (sem collector)
+    /// - Metrics: SDK direto via API (sem collector)
+    /// - X-Ray: Requer X-Ray Daemon rodando no cluster (DaemonSet) - env: AWS_XRAY_DAEMON_ADDRESS
     /// </summary>
     public static IServiceCollection AddAwsObservability(this IServiceCollection services, IConfiguration configuration, IWebHostEnvironment environment)
     {
