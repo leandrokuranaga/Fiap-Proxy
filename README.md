@@ -37,7 +37,7 @@ Esse projeto tem como finalidade servir para roteamento das rotas de apis, além
 | CD | Status |
 | --- | --- | 
 | Dockerhub | [![Publicar Imagem Docker no Docker Hub](https://github.com/leandrokuranaga/fiap-proxy/actions/workflows/deploy-dockerhub.yml/badge.svg)](https://github.com/leandrokuranaga/fiap-proxy/actions/workflows/deploy-dockerhub.yml) | 
-| AWS | [![Deploy to AWS ECS](https://github.com/leandrokuranaga/fiap-proxy/actions/workflows/deploy-aws.yml/badge.svg)](https://github.com/leandrokuranaga/fiap-proxy/actions/workflows/deploy-aws.yml) |
+| EKS | [![Deploy to AWS EKS](https://github.com/leandrokuranaga/fiap-proxy/actions/workflows/deploy-eks.yml/badge.svg)](https://github.com/leandrokuranaga/fiap-proxy/actions/workflows/deploy-eks.yml) |
 
 ## 🚀 Getting Started
 
@@ -152,4 +152,3 @@ O FIAP Proxy segue uma arquitetura de API Gateway moderna baseada em YARP:
 - **Swagger/OpenAPI**: Documentação automática
 - **CORS**: Habilita acesso cross-origin
 - **Middleware Pipeline**: Configurável para autenticação, logging, etc.
-
