@@ -73,6 +73,8 @@ else
     builder.Services.AddAuthentication();
 }
 
+builder.Services.AddApplicationInsightsTelemetry(builder.Configuration["ApplicationInsights:InstrumentationKey"]);
+
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("AdminPolicy", policy => policy
@@ -99,8 +101,6 @@ builder.Services.AddRateLimiter(options =>
 });
 
 var app = builder.Build();
-
-app.UseAwsXRay("FiapProxy");
 
 app.UseRouting();
 

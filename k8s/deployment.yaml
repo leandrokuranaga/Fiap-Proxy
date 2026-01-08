@@ -23,9 +23,6 @@ spec:
           ports:
             - containerPort: 8080
               protocol: TCP
-          env:
-            - name: AWS_XRAY_DAEMON_ADDRESS
-              value: "xray-daemon.fiap:2000"
           envFrom:
             - configMapRef:
                 name: proxy-config
