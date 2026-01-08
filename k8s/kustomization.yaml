@@ -13,6 +13,7 @@ resources:
   - configmap.yaml
   - secret.yaml
   - ingress.yaml
+  - xray-daemon.yaml
 
 commonLabels:
   project: fiap
