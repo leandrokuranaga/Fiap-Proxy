@@ -2,8 +2,6 @@ using Amazon;
 using Amazon.CloudWatch;
 using Amazon.CloudWatch.Model;
 using Amazon.CloudWatchLogs;
-using Amazon.XRay.Recorder.Core;
-using Amazon.XRay.Recorder.Handlers.AwsSdk;
 using Fiap.Proxy.Utils;
 using Microsoft.Extensions.DependencyInjection;
 using OpenTelemetry.Exporter;
@@ -91,10 +89,7 @@ public static class ObservabilityExtensions
     }
 
     /// <summary>
-    /// Configura observabilidade usando AWS CloudWatch (Logs + Metrics) e X-Ray (Tracing)
-    /// - Logs: SDK direto via API (sem collector)
-    /// - Metrics: SDK direto via API (sem collector)
-    /// - X-Ray: Requer X-Ray Daemon rodando no cluster (DaemonSet) - env: AWS_XRAY_DAEMON_ADDRESS
+    /// Configura observabilidade usando AWS CloudWatch (Logs + Metrics) e Application Insights (Tracing)
     /// </summary>
     public static IServiceCollection AddAwsObservability(this IServiceCollection services, IConfiguration configuration, IWebHostEnvironment environment)
     {
@@ -103,24 +98,18 @@ public static class ObservabilityExtensions
         var region = awsConfig["Region"] ?? "sa-east-1";
 
         ConfigureAwsCloudWatchLogs(configuration, environment, serviceName, region);
-        ConfigureAwsXRayTracing(services, configuration, serviceName, region);
         ConfigureAwsCloudWatchMetrics(services, configuration, serviceName, region);
 
+        var appInsightsKey = configuration["ApplicationInsights:InstrumentationKey"];
+        if (!string.IsNullOrEmpty(appInsightsKey))
+        {
+            services.AddApplicationInsightsTelemetry(options =>
+            {
+                options.ConnectionString = $"InstrumentationKey={appInsightsKey}";
+            });
+        }
+
         return services;
-    }
-
-    /// <summary>
-    /// Configura middleware do X-Ray no pipeline (chamar no Program.cs após builder.Build())
-    /// </summary>
-    public static IApplicationBuilder UseAwsXRay(this IApplicationBuilder app, string serviceName)
-    {
-        var configuration = app.ApplicationServices.GetRequiredService<IConfiguration>();
-        var xrayEnabled = configuration.GetValue<bool>("AWS:Observability:XRay:Enabled");
-
-        if (!xrayEnabled) return app;
-
-        app.UseXRay(serviceName);
-        return app;
     }
 
     private static void ConfigureAwsCloudWatchLogs(IConfiguration configuration, IWebHostEnvironment environment, string serviceName, string region)
@@ -212,21 +201,6 @@ public static class ObservabilityExtensions
                 .WriteTo.Console()
                 .CreateLogger();
         }
-    }
-
-    private static void ConfigureAwsXRayTracing(IServiceCollection services, IConfiguration configuration, string serviceName, string region)
-    {
-        var xrayEnabled = configuration.GetValue<bool>("AWS:Observability:XRay:Enabled");
-        if (!xrayEnabled) return;
-
-        var daemonAddress = configuration["AWS:Observability:XRay:DaemonAddress"]
-            ?? Environment.GetEnvironmentVariable("AWS_XRAY_DAEMON_ADDRESS")
-            ?? "xray-daemon.fiap:2000";
-
-        Environment.SetEnvironmentVariable("AWS_XRAY_DAEMON_ADDRESS", daemonAddress);
-
-        AWSXRayRecorder.InitializeInstance(configuration);
-        AWSSDKHandler.RegisterXRayForAllServices();
     }
 
     private static void ConfigureAwsCloudWatchMetrics(IServiceCollection services, IConfiguration configuration, string serviceName, string region)
