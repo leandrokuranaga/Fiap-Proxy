@@ -14,14 +14,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddUserSecrets<Program>(optional: true, reloadOnChange: true);
 #endif
 
-builder.Configuration.AddSystemsManager(source =>
-{
-    source.Path = "/myapp/prod/";
-    source.Optional = true;
-    source.ReloadAfter = TimeSpan.FromMinutes(5);
-});
-
-builder.Services.AddAwsObservability(builder.Configuration, builder.Environment);
+builder.Services.AddProxyObservability(builder.Configuration, builder.Environment);
 
 builder.Host.UseSerilog();
 
@@ -72,8 +65,6 @@ else
 {
     builder.Services.AddAuthentication();
 }
-
-builder.Services.AddApplicationInsightsTelemetry(builder.Configuration["ApplicationInsights:InstrumentationKey"]);
 
 builder.Services.AddAuthorization(options =>
 {
