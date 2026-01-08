@@ -1,5 +1,3 @@
-using Fiap.Proxy.Utils;
-using Microsoft.Extensions.DependencyInjection;
 using OpenTelemetry.Exporter;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -29,65 +27,64 @@ public static class ObservabilityExtensions
 
     private static void ConfigureProxySerilog(IServiceCollection services, IConfiguration configuration, IWebHostEnvironment environment)
     {
-        services.AddOptions<Utils.Serilog>()
-            .Bind(configuration.GetSection(nameof(Utils.Serilog)))
-            .ValidateDataAnnotations()
-            .ValidateOnStart();
-
         var lokiUri = configuration["ProxyObservability:Serilog:WriteTo:1:Args:Uri"];
 
-        Log.Logger = new LoggerConfiguration()
+        var loggerConfig = new LoggerConfiguration()
             .ReadFrom.Configuration(configuration.GetSection("ProxyObservability:Serilog"))
             .Enrich.FromLogContext()
             .Enrich.WithEnvironmentName()
             .Enrich.WithMachineName()
             .Enrich.WithProcessId()
             .Enrich.WithProperty("Application", "Proxy")
-            .WriteTo.Console()
-            .WriteTo.GrafanaLoki(
+            .WriteTo.Console();
+
+        if (!string.IsNullOrEmpty(lokiUri))
+        {
+            loggerConfig.WriteTo.GrafanaLoki(
                 uri: lokiUri,
                 labels:
                 [
                     new() { Key = "app-proxy", Value = "dotnet-api" },
                     new() { Key = "env", Value = environment.EnvironmentName }
-                ])
-            .CreateLogger();
+                ]);
+        }
+
+        Log.Logger = loggerConfig.CreateLogger();
     }
 
     private static void ConfigureProxyOpenTelemetry(IServiceCollection services, IConfiguration configuration)
     {
-        services.AddOptions<DistributedTracing>()
-            .Bind(configuration.GetSection(nameof(DistributedTracing)))
-            .ValidateDataAnnotations()
-            .ValidateOnStart();
-
-        var serviceName = configuration["DistributedTracing:Jaeger:ServiceName"];
-        var endpoint = configuration["DistributedTracing:Jaeger:Endpoint"];
-        var host = configuration["DistributedTracing:Jaeger:Host"];
-        var port = int.Parse(configuration["DistributedTracing:Jaeger:Port"] ?? "6831");
+        var serviceName = configuration["ProxyObservability:DistributedTracing:Jaeger:ServiceName"];
+        var endpoint = configuration["ProxyObservability:DistributedTracing:Jaeger:Endpoint"];
+        var host = configuration["ProxyObservability:DistributedTracing:Jaeger:Host"];
+        var portStr = configuration["ProxyObservability:DistributedTracing:Jaeger:Port"];
+        var port = int.TryParse(portStr, out var p) ? p : 6831;
 
         services.AddOpenTelemetry()
-            .WithTracing(tracing => tracing
-                .SetResourceBuilder(ResourceBuilder.CreateDefault()
-                    .AddService(serviceName: serviceName ?? "Proxy", serviceVersion: "1.0.0"))
-                .AddAspNetCoreInstrumentation()
-                .AddEntityFrameworkCoreInstrumentation(options =>
+            .WithTracing(tracing =>
+            {
+                tracing
+                    .SetResourceBuilder(ResourceBuilder.CreateDefault()
+                        .AddService(serviceName: serviceName ?? "Proxy", serviceVersion: "1.0.0"))
+                    .AddAspNetCoreInstrumentation();
+
+                // Só adiciona Jaeger se tiver endpoint ou host configurado
+                if (!string.IsNullOrEmpty(endpoint) || !string.IsNullOrEmpty(host))
                 {
-                    options.SetDbStatementForText = true;
-                    options.SetDbStatementForStoredProcedure = true;
-                })
-                .AddJaegerExporter(options =>
-                {
-                    if (!string.IsNullOrEmpty(endpoint))
+                    tracing.AddJaegerExporter(options =>
                     {
-                        options.Endpoint = new Uri(endpoint);
-                        options.Protocol = JaegerExportProtocol.HttpBinaryThrift;
-                    }
-                    else
-                    {
-                        options.AgentHost = host;
-                        options.AgentPort = port;
-                    }
-                }));
+                        if (!string.IsNullOrEmpty(endpoint))
+                        {
+                            options.Endpoint = new Uri(endpoint);
+                            options.Protocol = JaegerExportProtocol.HttpBinaryThrift;
+                        }
+                        else
+                        {
+                            options.AgentHost = host;
+                            options.AgentPort = port;
+                        }
+                    });
+                }
+            });
     }
 }
