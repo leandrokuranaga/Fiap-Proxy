@@ -186,8 +186,8 @@ public static class ObservabilityExtensions
 
     private static AmazonCloudWatchLogsClient CreateCloudWatchLogsClient(IConfiguration configuration, string region)
     {
-        var accessKey = configuration["AWS:Credentials:AccessKey"];
-        var secretKey = configuration["AWS:Credentials:SecretKey"];
+        var accessKey = Environment.GetEnvironmentVariable("AWS_SQS_ACCESS_KEY");
+        var secretKey = Environment.GetEnvironmentVariable("AWS_SQS_SECRET_KEY");
 
         if (!string.IsNullOrEmpty(accessKey) && !string.IsNullOrEmpty(secretKey))
         {
@@ -200,8 +200,8 @@ public static class ObservabilityExtensions
 
     private static AmazonCloudWatchClient CreateCloudWatchClient(IConfiguration configuration, string region)
     {
-        var accessKey = configuration["AWS:Credentials:AccessKey"];
-        var secretKey = configuration["AWS:Credentials:SecretKey"];
+        var accessKey = Environment.GetEnvironmentVariable("AWS_SQS_ACCESS_KEY");
+        var secretKey = Environment.GetEnvironmentVariable("AWS_SQS_SECRET_KEY");
 
         if (!string.IsNullOrEmpty(accessKey) && !string.IsNullOrEmpty(secretKey))
         {
